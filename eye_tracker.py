@@ -9,6 +9,10 @@ import cv2
 import numpy as np
 from face_detector import get_face_detector, find_faces
 from face_landmarks import get_landmark_model, detect_marks
+import math
+from datetime import timedelta
+import sys
+import os
 
 
 def eye_on_mask(mask, side, shape):
@@ -135,27 +139,36 @@ def print_eye_pos(img, left, right):
     None.
 
     """
-    if left == right and left != 0:
-        text = ''
-        if left == 1:
-            print('Looking left')
-            text = 'Looking left'
-        elif left == 2:
-            print('Looking right')
-            text = 'Looking right'
-        elif left == 3:
-            print('Looking up')
-            text = 'Looking up'
-        font = cv2.FONT_HERSHEY_SIMPLEX 
-        cv2.putText(img, text, (30, 30), font,  
-                   1, (0, 255, 255), 2, cv2.LINE_AA) 
+    with open(fileInput + '_eye.txt', 'a') as file:
+        if left == right and left != 0:
+            text = ''
+            if left == 1:
+                text = 'Looking left'
+                file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + ": " + text + "\n")
+            elif left == 2:
+                text = 'Looking right'
+                file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + ": " + text + "\n")
 
+            elif left == 3:
+                text = 'Looking up'
+                file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + ": " + text + "\n")
+
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            cv2.putText(img, text, (30, 30), font, 1, (0, 255, 255), 2, cv2.LINE_AA)
+        # Remove the print, write to a file instead and round to seconds as we are not interested in the milliseconds in the playback.
+            
 face_model = get_face_detector()
 landmark_model = get_landmark_model()
 left = [36, 37, 38, 39, 40, 41]
 right = [42, 43, 44, 45, 46, 47]
 
-cap = cv2.VideoCapture(0)
+fileInput = sys.argv[1]
+#fileInput = "/Users/mirunad/Desktop/IMG_2190.MOV"
+
+if(not os.path.exists(fileInput)):
+    raise FileNotFoundError(fileInput)
+
+cap = cv2.VideoCapture(fileInput)
 ret, img = cap.read()
 thresh = img.copy()
 
