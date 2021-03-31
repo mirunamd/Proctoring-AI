@@ -59,7 +59,7 @@ def track_mouth():
                         cnt_inner += 1
                 if cnt_outer > 3 and cnt_inner > 2:
                     # Remove the print to a file instead and round to seconds as we are not interested in the milliseconds in the playback.
-                    file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + ": Mouth open\n")
+                    file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + "&&&Mouth open\n")
                     cv2.putText(img, 'Mouth open', (30, 30), font,
                             1, (0, 255, 255), 2)
                 # show the output image with the face detections + facial landmarks

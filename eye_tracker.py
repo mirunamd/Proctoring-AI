@@ -144,14 +144,14 @@ def print_eye_pos(img, left, right):
             text = ''
             if left == 1:
                 text = 'Looking left'
-                file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + ": " + text + "\n")
+                file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + "&&&" + text + "\n")
             elif left == 2:
                 text = 'Looking right'
-                file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + ": " + text + "\n")
+                file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + "&&&" + text + "\n")
 
             elif left == 3:
                 text = 'Looking up'
-                file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + ": " + text + "\n")
+                file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + "&&&" + text + "\n")
 
             font = cv2.FONT_HERSHEY_SIMPLEX
             cv2.putText(img, text, (30, 30), font, 1, (0, 255, 255), 2, cv2.LINE_AA)

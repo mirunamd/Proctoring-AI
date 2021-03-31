@@ -208,20 +208,20 @@ def track_head_pose():
                         # print('div by zero error')
                     if ang1 >= 48:
                         # Remove the print to a file instead and round to seconds as we are not interested in the milliseconds in the playback.
-                        file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + ": Head down\n")
+                        file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + "&&&Head down\n")
                         cv2.putText(img, 'Head down', (30, 30), font, 2, (255, 255, 128), 3)
                     elif ang1 <= -48:
                         # Remove the print to a file instead and round to seconds as we are not interested in the milliseconds in the playback.
-                        file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + ": Head up\n")
+                        file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + "&&&Head up\n")
                         cv2.putText(img, 'Head up', (30, 30), font, 2, (255, 255, 128), 3)
                      
                     if ang2 >= 48:
                         # Remove the print to a file instead and round to seconds as we are not interested in the milliseconds in the playback.
-                        file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + ": Head right\n")
+                        file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + "&&&Head right\n")
                         cv2.putText(img, 'Head right', (90, 30), font, 2, (255, 255, 128), 3)
                     elif ang2 <= -48:
                         # Remove the print to a file instead and round to seconds as we are not interested in the milliseconds in the playback.
-                        file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + ": Head left\n")
+                        file.write(str(timedelta(seconds= math.floor((cap.get(cv2.CAP_PROP_POS_MSEC)/ 1000)))) + "&&&Head left\n")
                         cv2.putText(img, 'Head left', (90, 30), font, 2, (255, 255, 128), 3)
                     
                     cv2.putText(img, str(ang1), tuple(p1), font, 2, (128, 255, 255), 3)
