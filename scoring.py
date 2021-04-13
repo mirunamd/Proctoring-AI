@@ -86,23 +86,81 @@ logs_dict = logsObj.to_dict()
 actions = logs_dict['actions']
 end_date = dateutil.parser.parse(actions[-1]['timestamp'])
 start_date = dateutil.parser.parse(actions[0]['timestamp'])
-exam_submission = (get_millis(end_date) - get_millis(start_date)) / (1000 * 60 * 60)  # seconds
+exam_submission = (get_millis(end_date) - get_millis(start_date)) / (1000)  # seconds
 
+# define heuristic types
+class Exponential(dict):
+  # update typescript if names change
+  type
+  def __init__(self, score, eye_score, head_score, mouth_score, exam_submission, time_benchmark, eye_benchmark, head_benchmark, mouth_benchmark):
+    self.score = score
+    self.eye_score = eye_score
+    self.head_score = head_score
+    self.mouth_score = mouth_score
+    self.type = 'exponential'
+    self.exam_submission = exam_submission
+    self.time_benchmark = time_benchmark
+    self.eye_benchmark = eye_benchmark
+    self.head_benchmark = head_benchmark
+    self.mouth_benchmark = mouth_benchmark
+
+class Consecutive(dict):
+  # update typescript if names change
+  score = 0
+  type
+  def __init__(self, incidents, consecutive_weight, time_benchmark):
+    self.incidents = incidents
+    self.consecutive_weight = consecutive_weight
+    self.score = incidents * consecutive_weight
+    self.score = self.score if self.score <= 100 else 100
+    self.time_benchmark = time_benchmark
+    self.type = 'consecutive'
+
+class Correlated(dict):
+  # update typescript if names change
+  score = 0
+  type
+  def __init__(self, incidents, correlated_weight, time_benchmark):
+    self.incidents = incidents
+    self.correlated_weight = correlated_weight
+    self.score = incidents * correlated_weight
+    self.score = self.score if self.score <= 100 else 100
+    self.time_benchmark = time_benchmark
+    self.type = 'correlated'
 
 def getSecondsFromString(str):
     val = str.split(':')
     return int(val[0]) * 3600 + int(val[1]) * 60 + int(val[2])
+    
+def typing(finish_video_timestamp, start_video_timestamp):
+    if(not finish_video_timestamp or not start_video_timestamp):
+        return False
+    sought_finish_timestamp = getSecondsFromString(finish_video_timestamp)
+    sought_start_timestamp = getSecondsFromString(start_video_timestamp)
+    for action in actions:
+        if action['actionType'] != "typing" and action['actionType'] != "answered":
+            continue;
+        if action['actionType'] == "typing":
+            action_timestamp = (get_millis(dateutil.parser.parse(action['finishedTyping'])) - get_millis(start_date)) / 1000
+        if action['actionType'] == "answered":
+            action_timestamp = (get_millis(dateutil.parser.parse(action['timestamp'])) - get_millis(start_date)) / 1000
+        # if student started typing within 2 seconds from looking sideways, we count the incident
+        if abs(action_timestamp - sought_finish_timestamp) <= 2:
+            return True
+        # if student typed within the interval start_timestamp and finish_timestamp
+        if sought_start_timestamp <= action_timestamp and action_timestamp <= sought_finish_timestamp:
+            return True
+    return False
 
-
-def computecheating_score(exam_submission, exam_duration, events_dict):
+def computeCheatingScore(exam_submission, exam_duration, events_dict):
     cheating_score = 0  # / 100
     keywords = ['Looking', 'Mouth', 'Head']  # events keywords
     looking_score = 0
     mouth_score = 0
     head_score = 0
 
-    # control parameters: X times looking away and talking in a Y exam is considered normal behaviour
-    X = 60
+    # control parameters: X times looking away and talking in a Ys exam is considered normal behaviour
+    X = 60 * 9 # minutes at most; seconds
     Y = 1800
 
     # head movements control param
@@ -111,40 +169,47 @@ def computecheating_score(exam_submission, exam_duration, events_dict):
     # time diff control param, events occuring less than 5 seconds apart in a Y seconds exam are reported
     K = 5
 
-    # weight of consecutive incidents in cheating score
-    weight = 7
-    # allowed consecutive incidents in a Y seconds exam
-    J = 10
+    # weights
+    consecutive_weight = 7 # consecutive_weight of consecutive incidents in cheating score
+    correlationWeight = 5 # weight of correlated events
     
     looking_threshold = exam_submission * X / Y  # times
     mouth_threshold = exam_submission * X / Y
     head_threshold = exam_submission * Z / Y
-#    timeThreshold = exam_submission * K / Y # seconds
-    timeThreshold = 5 # seconds
-    allowed_incidents = exam_submission * J / Y
     
-    print("allowed incidents: {}".format(allowed_incidents))
+    time_threshold = 5 # seconds
     
     consecutive_incidents = 0
+    correlated_score = 0
+    
     previous_events_timestamp = None
+    previous_looking_timestamp = None
+    start_looking_timestamp = None
 
     # give a score
-
     for (timestamp, events) in events_dict.items():
+        # Consecutive
         if not previous_events_timestamp:
             previous_events_timestamp = timestamp
         else:
             time_diff = getSecondsFromString(timestamp) - getSecondsFromString(previous_events_timestamp)
-            if time_diff <= timeThreshold:  # seconds
+            if time_diff <= time_threshold:  # seconds
                 consecutive_incidents += 1
             else:
-                cheating_score += (consecutive_incidents * weight if consecutive_incidents > allowed_incidents else 0)
-                consecutive_incidents = 0
+                # if the student was not typing, not interested
+                if not typing(previous_looking_timestamp, start_looking_timestamp):
+                    correlated_score = 0
+                start_looking_timestamp = None
             previous_events_timestamp = timestamp
-        
+        # Exponential
         for event in events:
             if keywords[0] in event:
-                if looking_score <= looking_threshold:  # seconds
+                correlated_score += 1;
+                previous_looking_timestamp = timestamp
+                if not start_looking_timestamp:
+                    start_looking_timestamp = timestamp
+            
+                if looking_score <= looking_threshold:
                     looking_score += 1
                 else:
                     looking_score += looking_score
@@ -158,10 +223,13 @@ def computecheating_score(exam_submission, exam_duration, events_dict):
                     head_score += 1
                 else:
                     head_score += head_score
-
-    cheating_score += looking_score + mouth_score + head_score + (consecutive_incidents * weight if consecutive_incidents > allowed_incidents else 0)
-    print(cheating_score)
-    return (100 if cheating_score >= 100 else cheating_score)
+    
+    if(not typing(previous_looking_timestamp, start_looking_timestamp)):
+        correlated_score = 0
+    
+    exponential_score = looking_score + mouth_score + head_score
+    exponential_score = exponential_score if exponential_score <= 100 else 100
+    return (Exponential(exponential_score, looking_score, head_score, mouth_score, exam_submission, Y, X, Z, X), Consecutive(consecutive_incidents, consecutive_weight, time_threshold), Correlated(correlated_score, correlationWeight, time_threshold))
 
 #
 #exam_submission = 3600 * 10 / 60
@@ -188,7 +256,10 @@ def computecheating_score(exam_submission, exam_duration, events_dict):
 #    }
 #events_dict = {'0:00:00': ['Looking right'], '0:00:01': ['Looking right'], '0:00:02': ['Looking right'], '0:00:03': ['Looking left'], '0:00:05': ['Looking right'], '0:00:06': ['Looking right', 'Looking up', 'Mouth open'], '0:00:07': ['Looking up', 'Looking left'], '0:00:10': ['Looking right', 'Head right'], '0:00:11': ['Looking up', 'Head right', 'Head left', 'Mouth open'], '0:00:12': ['Mouth open'], '0:00:13': ['Looking up', 'Mouth open'], '0:00:14': ['Head left', 'Mouth open']}
 
-cheating_score = computecheating_score(exam_submission, exam_duration, events_dict)
-print('Cheating score: {}'.format(cheating_score))
+# [0]: Exponential, [1]: Consecutive, [2]: Correlated
+cheating_scores = computeCheatingScore(exam_submission, exam_duration, events_dict)
+
+firestoreObj = {'exponential': vars(cheating_scores[0]), 'consecutive': vars(cheating_scores[1]), 'correlated': vars(cheating_scores[2])}
+print('Score: {}'.format(firestoreObj))
 eval_ref = db.collection(u'users').document(u'tst123@test.com').collection(u'evaluation').document(examId)
-eval_ref.set({'cheatingScore': cheating_score})
+eval_ref.set(firestoreObj)
