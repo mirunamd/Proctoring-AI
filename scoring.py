@@ -16,7 +16,9 @@ os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = \
     '/Users/mirunad/Work/examination-platform-791d79b41c1d.json'
 
 fileInput = sys.argv[1]
+user = sys.argv[2]
 
+max_int = 2**63 - 1
 
 def get_millis(dt):
     return dt.replace(tzinfo=timezone.utc).timestamp() * 1000
@@ -137,15 +139,17 @@ def typing(finish_video_timestamp, start_video_timestamp):
         return False
     sought_finish_timestamp = getSecondsFromString(finish_video_timestamp)
     sought_start_timestamp = getSecondsFromString(start_video_timestamp)
+    
     for action in actions:
-        if action['actionType'] != "typing" and action['actionType'] != "answered":
+        if action['actionType'] != "typing" and action['actionType'] != "set_answer":
             continue;
         if action['actionType'] == "typing":
             action_timestamp = (get_millis(dateutil.parser.parse(action['finishedTyping'])) - get_millis(start_date)) / 1000
-        if action['actionType'] == "answered":
+        if action['actionType'] == "set_answer":
             action_timestamp = (get_millis(dateutil.parser.parse(action['timestamp'])) - get_millis(start_date)) / 1000
-        # if student started typing within 2 seconds from looking sideways, we count the incident
-        if abs(action_timestamp - sought_finish_timestamp) <= 2:
+        # if student started typing within 5 seconds from looking sideways, we count the incident
+        t = action_timestamp - sought_finish_timestamp
+        if t <= 5 and t >= 0:
             return True
         # if student typed within the interval start_timestamp and finish_timestamp
         if sought_start_timestamp <= action_timestamp and action_timestamp <= sought_finish_timestamp:
@@ -166,9 +170,6 @@ def computeCheatingScore(exam_submission, exam_duration, events_dict):
     # head movements control param
     Z = 10
 
-    # time diff control param, events occuring less than 5 seconds apart in a Y seconds exam are reported
-    K = 5
-
     # weights
     consecutive_weight = 7 # consecutive_weight of consecutive incidents in cheating score
     correlationWeight = 5 # weight of correlated events
@@ -177,10 +178,11 @@ def computeCheatingScore(exam_submission, exam_duration, events_dict):
     mouth_threshold = exam_submission * X / Y
     head_threshold = exam_submission * Z / Y
     
-    time_threshold = 5 # seconds
+    time_threshold = 6 # seconds
     
     consecutive_incidents = 0
     correlated_score = 0
+    aux_correlated_score = 0
     
     previous_events_timestamp = None
     previous_looking_timestamp = None
@@ -198,13 +200,15 @@ def computeCheatingScore(exam_submission, exam_duration, events_dict):
             else:
                 # if the student was not typing, not interested
                 if not typing(previous_looking_timestamp, start_looking_timestamp):
-                    correlated_score = 0
+                    correlated_score -= aux_correlated_score
+                    aux_correlated_score = 0
                 start_looking_timestamp = None
             previous_events_timestamp = timestamp
         # Exponential
         for event in events:
             if keywords[0] in event:
                 correlated_score += 1;
+                aux_correlated_score += 1;
                 previous_looking_timestamp = timestamp
                 if not start_looking_timestamp:
                     start_looking_timestamp = timestamp
@@ -225,10 +229,14 @@ def computeCheatingScore(exam_submission, exam_duration, events_dict):
                     head_score += head_score
     
     if(not typing(previous_looking_timestamp, start_looking_timestamp)):
-        correlated_score = 0
+        aux_correlated_score = 0
+    correlated_score += aux_correlated_score
     
     exponential_score = looking_score + mouth_score + head_score
     exponential_score = exponential_score if exponential_score <= 100 else 100
+    head_score = head_score if head_score <= max_int else max_int
+    looking_score = looking_score if looking_score <= max_int else max_int
+    mouth_score = mouth_score if mouth_score <= max_int else max_int
     return (Exponential(exponential_score, looking_score, head_score, mouth_score, exam_submission, Y, X, Z, X), Consecutive(consecutive_incidents, consecutive_weight, time_threshold), Correlated(correlated_score, correlationWeight, time_threshold))
 
 #
@@ -261,5 +269,5 @@ cheating_scores = computeCheatingScore(exam_submission, exam_duration, events_di
 
 firestoreObj = {'exponential': vars(cheating_scores[0]), 'consecutive': vars(cheating_scores[1]), 'correlated': vars(cheating_scores[2])}
 print('Score: {}'.format(firestoreObj))
-eval_ref = db.collection(u'users').document(u'tst123@test.com').collection(u'evaluation').document(examId)
+eval_ref = db.collection(u'users').document(user).collection(u'evaluation').document(examId)
 eval_ref.set(firestoreObj)
